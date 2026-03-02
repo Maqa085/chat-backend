@@ -1,34 +1,50 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-
 const app = express();
+
 app.use(express.json());
 app.use(cors());
 
-// Sənin MongoDB linkin
 const mongoURI = "mongodb+srv://musicbot:UJcqDF6ONi29nmMJ@music.0hxxbjw.mongodb.net/chatDB?retryWrites=true&w=majority";
+mongoose.connect(mongoURI);
 
-mongoose.connect(mongoURI).then(() => console.log("DB OK"));
-
+// Mesaj və İstifadəçi modelləri
 const Message = mongoose.model('Message', {
-    user: String,
+    userId: Number,
+    userName: String,
     text: String,
     date: { type: Date, default: Date.now }
 });
 
-app.post('/send', async (req, res) => {
-    try {
-        const newMessage = new Message(req.body);
-        await newMessage.save();
-        res.send({ success: true });
-    } catch (e) { res.status(500).send(e); }
+const User = mongoose.model('User', {
+    userId: { type: Number, unique: true },
+    userName: String,
+    lastSeen: { type: Date, default: Date.now }
 });
 
-app.get('/messages', async (req, res) => {
-    const messages = await Message.find().sort({ date: -1 });
-    res.send(messages);
+// Giriş edən istifadəçini qeyd etmək
+app.post('/api/login', async (req, res) => {
+    const { userId, userName } = req.body;
+    await User.findOneAndUpdate(
+        { userId }, 
+        { userName, lastSeen: Date.now() }, 
+        { upsert: true }
+    );
+    res.json({ success: true });
+});
+
+// Mesaj göndərmək
+app.post('/api/send', async (req, res) => {
+    const newMessage = new Message(req.body);
+    await newMessage.save();
+    res.json({ success: true });
+});
+
+// Bütün mesajları gətirmək
+app.get('/api/messages', async (req, res) => {
+    const messages = await Message.find().sort({ date: 1 }).limit(100);
+    res.json(messages);
 });
 
 app.listen(process.env.PORT || 3000);
-         
